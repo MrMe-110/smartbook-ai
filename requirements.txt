@@ -1,0 +1,17 @@
+# ## Streamlit user interface
+streamlit>=1.40,<2.0
+
+# ## Supabase authentication and database
+supabase>=2.10,<3.0
+
+# ## Environment variables
+python-dotenv>=1.0,<2.0
+
+# ## LangChain agent framework
+langchain>=1.0,<2.0
+
+# ## Groq language models for LangChain
+langchain-groq>=1.0,<2.0
+
+# ## Streamlit cookie management
+extra-streamlit-components>=0.1.70
