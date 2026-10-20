@@ -16,4 +16,4 @@ langchain-groq>=1.0,<2.0
 # ## Streamlit cookie management
 extra-streamlit-components>=0.1.70
 
-streamlit-cookies-manager>=0.2.0
+extra-streamlit-components>=0.1.70

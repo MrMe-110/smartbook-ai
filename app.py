@@ -1,8 +1,7 @@
-
 # ============================================================
 # SmartBook AI — Main Application
 # ============================================================
-# ## Features
+# Features:
 # - Signup and login
 # - Cookie-based session restoration
 # - Supabase profile management
@@ -10,7 +9,7 @@
 # - Worker applications and dashboard
 # - LangChain AI booking assistant
 #
-# ## Security
+# Security:
 # - New accounts begin as clients
 # - Authenticated sessions are required
 # - Database RLS must enforce data ownership
@@ -18,11 +17,10 @@
 # ============================================================
 
 import json
-import os
 
 import streamlit as st
+import extra_streamlit_components as stx
 from dotenv import load_dotenv
-from streamlit_cookies_manager import EncryptedCookieManager
 
 from auth import (
     signup_user,
@@ -42,7 +40,7 @@ from chat_ui import show_ai_booking_assistant
 
 
 # ------------------------------------------------------------
-# ## Configuration
+# Configuration
 # ------------------------------------------------------------
 
 load_dotenv()
@@ -61,26 +59,14 @@ st.caption(
 
 
 # ------------------------------------------------------------
-# ## Cookie Setup
+# Cookie Setup
 # ------------------------------------------------------------
 
-cookie_password = os.getenv("COOKIES_PASSWORD")
-
-if not cookie_password:
-    st.error("COOKIES_PASSWORD is missing from your .env file.")
-    st.stop()
-
-cookies = EncryptedCookieManager(
-    prefix="smartbookai/",
-    password=cookie_password,
-)
-
-if not cookies.ready():
-    st.stop()
+cookies = stx.CookieManager(key="smartbook_cookie_manager")
 
 
 # ------------------------------------------------------------
-# ## Session State
+# Session State
 # ------------------------------------------------------------
 
 if "user" not in st.session_state:
@@ -100,12 +86,13 @@ def save_session(user, session):
     st.session_state.access_token = session.access_token
     st.session_state.refresh_token = session.refresh_token
 
-    cookies["sb_session"] = json.dumps({
-        "access_token": session.access_token,
-        "refresh_token": session.refresh_token,
-    })
-
-    cookies.save()
+    cookies.set(
+        "sb_session",
+        json.dumps({
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+        }),
+    )
 
 
 def clear_session():
@@ -115,16 +102,18 @@ def clear_session():
     st.session_state.access_token = None
     st.session_state.refresh_token = None
 
-    cookies["sb_session"] = ""
-    cookies.save()
+    try:
+        cookies.delete("sb_session")
+    except Exception:
+        pass
 
 
 # ------------------------------------------------------------
-# ## Restore Session
+# Restore Session
 # ------------------------------------------------------------
 
 if st.session_state.user is None:
-    saved_session = cookies.get("sb_session", "")
+    saved_session = cookies.get("sb_session")
 
     if saved_session:
         try:
@@ -135,14 +124,24 @@ if st.session_state.user is None:
                 tokens["refresh_token"],
             )
 
-            save_session(restored.user, restored.session)
+            if (
+                restored
+                and restored.user
+                and restored.session
+            ):
+                save_session(
+                    restored.user,
+                    restored.session,
+                )
+            else:
+                clear_session()
 
         except Exception:
             clear_session()
 
 
 # ------------------------------------------------------------
-# ## Login and Signup
+# Login and Signup
 # ------------------------------------------------------------
 
 if st.session_state.user is None:
@@ -171,8 +170,13 @@ if st.session_state.user is None:
             )
 
         if login_submitted:
-            if not login_email.strip() or not login_password:
-                st.warning("Please enter your email and password.")
+            if (
+                not login_email.strip()
+                or not login_password
+            ):
+                st.warning(
+                    "Please enter your email and password."
+                )
             else:
                 try:
                     success, result = login_user(
@@ -181,22 +185,26 @@ if st.session_state.user is None:
                     )
 
                     if success and result.session:
-                        save_session(result.user, result.session)
+                        save_session(
+                            result.user,
+                            result.session,
+                        )
                         st.success("Login successful!")
                         st.rerun()
 
                     elif success:
                         st.info(
-                            "Check your email if confirmation is required, "
-                            "then log in."
+                            "Check your email if confirmation "
+                            "is required, then log in."
                         )
+
                     else:
                         st.error(f"Login failed: {result}")
 
                 except Exception:
                     st.error(
-                        "Login failed. Please check your credentials "
-                        "and try again."
+                        "Login failed. Please check your "
+                        "credentials and try again."
                     )
 
     # -------------------- Signup ----------------------------
@@ -227,11 +235,18 @@ if st.session_state.user is None:
             if not full_name.strip():
                 st.warning("Please enter your name.")
 
-            elif not signup_email.strip() or not signup_password:
-                st.warning("Please enter your email and password.")
+            elif (
+                not signup_email.strip()
+                or not signup_password
+            ):
+                st.warning(
+                    "Please enter your email and password."
+                )
 
             elif len(signup_password) < 6:
-                st.warning("Use a password with at least 6 characters.")
+                st.warning(
+                    "Use a password with at least 6 characters."
+                )
 
             else:
                 try:
@@ -256,7 +271,7 @@ if st.session_state.user is None:
 
 
 # ------------------------------------------------------------
-# ## Validate Authenticated Session
+# Validate Authenticated Session
 # ------------------------------------------------------------
 
 user = st.session_state.user
@@ -265,12 +280,14 @@ user_id = getattr(user, "id", None)
 
 if not user_id or not access_token:
     clear_session()
-    st.warning("Your session is incomplete. Please log in again.")
+    st.warning(
+        "Your session is incomplete. Please log in again."
+    )
     st.rerun()
 
 
 # ------------------------------------------------------------
-# ## Sidebar and Logout
+# Sidebar and Logout
 # ------------------------------------------------------------
 
 st.sidebar.title("SmartBook AI")
@@ -281,7 +298,10 @@ st.sidebar.write(
 
 st.sidebar.success("Logged in")
 
-if st.sidebar.button("Logout", use_container_width=True):
+if st.sidebar.button(
+    "Logout",
+    use_container_width=True,
+):
     try:
         logout_user(
             st.session_state.access_token,
@@ -294,7 +314,7 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 
 # ------------------------------------------------------------
-# ## Load User Profile
+# Load User Profile
 # ------------------------------------------------------------
 
 st.header("👤 Your Account")
@@ -303,7 +323,9 @@ try:
     profile = get_user_profile(access_token)
 
     if not profile:
-        st.error("Your account profile could not be found.")
+        st.error(
+            "Your account profile could not be found."
+        )
         st.stop()
 
 except Exception:
@@ -311,7 +333,9 @@ except Exception:
     st.stop()
 
 
-st.write(f"**Name:** {profile.get('full_name') or 'Not provided'}")
+st.write(
+    f"**Name:** {profile.get('full_name') or 'Not provided'}"
+)
 
 role = profile.get("role", "client")
 
@@ -319,7 +343,7 @@ st.write(f"**Role:** {role.title()}")
 
 
 # ============================================================
-# ## Client Dashboard and Worker Application
+# Client Dashboard and Worker Application
 # ============================================================
 
 if role == "client":
@@ -362,14 +386,14 @@ if role == "client":
                 )
 
             st.caption(
-                "Applications require trusted review. Evidence links "
-                "alone do not establish verified qualifications."
+                "Applications require trusted review. Evidence "
+                "links alone do not establish verified qualifications."
             )
 
         else:
             st.write(
-                "Apply to offer healthcare, tutoring, or consulting "
-                "services on SmartBook AI."
+                "Apply to offer healthcare, tutoring, or "
+                "consulting services on SmartBook AI."
             )
 
             with st.form("worker_application_form"):
@@ -380,7 +404,11 @@ if role == "client":
 
                 industry = st.selectbox(
                     "Industry",
-                    ["tutoring", "consulting", "healthcare"],
+                    [
+                        "tutoring",
+                        "consulting",
+                        "healthcare",
+                    ],
                 )
 
                 description = st.text_area(
@@ -411,7 +439,8 @@ if role == "client":
 
                 if not business_name.strip():
                     st.error(
-                        "Please enter your business or professional name."
+                        "Please enter your business or "
+                        "professional name."
                     )
 
                 elif not assessment.get("complete", False):
@@ -434,11 +463,13 @@ if role == "client":
                         st.error(message)
 
     except Exception:
-        st.error("Could not load the worker application section.")
+        st.error(
+            "Could not load the worker application section."
+        )
 
 
 # ============================================================
-# ## Worker Dashboard
+# Worker Dashboard
 # ============================================================
 
 elif role == "worker":
@@ -450,7 +481,7 @@ elif role == "worker":
 
 
 # ============================================================
-# ## AI Booking Assistant
+# AI Booking Assistant
 # ============================================================
 
 st.divider()
