@@ -1,21 +1,18 @@
-
 # ============================================================
 # SmartBook AI — Authentication Module
 # ============================================================
-# ## Purpose
-# Manage user registration, login, session restoration, and logout.
+# Features:
+# - Register new client accounts
+# - Redirect confirmation emails to the correct app URL
+# - Authenticate users with Supabase Auth
+# - Restore sessions using access and refresh tokens
+# - Sign out authenticated sessions
 #
-# ## Features
-# 1. Register new client accounts.
-# 2. Authenticate existing users with Supabase Auth.
-# 3. Restore sessions using access and refresh tokens.
-# 4. Sign out authenticated sessions.
-#
-# ## Security
-# - Signup always creates a client account.
-# - Users cannot grant themselves the worker role.
-# - Supabase Auth manages passwords.
-# - Session tokens must be handled securely.
+# Security:
+# - Signup always assigns client metadata
+# - Metadata alone does not grant worker privileges
+# - Supabase Auth manages passwords
+# - Session tokens must be handled securely
 # ============================================================
 
 import os
@@ -25,7 +22,7 @@ from supabase import create_client
 
 
 # ------------------------------------------------------------
-# ## Configuration
+# Configuration
 # ------------------------------------------------------------
 
 load_dotenv()
@@ -33,9 +30,14 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+# Set APP_URL in Streamlit Cloud Secrets or local .env.
+# Cloud example: https://your-app-name.streamlit.app
+# Local example: http://localhost:8501
+APP_URL = os.getenv("APP_URL", "").strip().rstrip("/")
+
 
 # ------------------------------------------------------------
-# ## Create Authentication Client
+# Create Authentication Client
 # ------------------------------------------------------------
 
 def get_auth_client():
@@ -43,22 +45,21 @@ def get_auth_client():
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError(
-            "Check SUPABASE_URL and SUPABASE_KEY in your .env file."
+            "Check SUPABASE_URL and SUPABASE_KEY "
+            "in your environment configuration."
         )
 
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # ------------------------------------------------------------
-# ## Signup
+# Signup
 # ------------------------------------------------------------
 
 def signup_user(email, password, full_name, role="client"):
     """
-    Register a new client account.
-
-    The role parameter is retained for compatibility with existing
-    calls, but the submitted role cannot grant worker privileges.
+    Register a client account and configure the email
+    confirmation redirect when APP_URL is available.
 
     Returns:
         (True, message) on success.
@@ -83,25 +84,33 @@ def signup_user(email, password, full_name, role="client"):
     try:
         supabase = get_auth_client()
 
+        options = {
+            "data": {
+                "full_name": full_name,
+                # Informational metadata only.
+                # Enforce authorization in trusted database logic.
+                "role": "client",
+            }
+        }
+
+        # Supabase uses this URL after email confirmation.
+        # Add the same URL to Supabase Auth Redirect URLs.
+        if APP_URL:
+            options["email_redirect_to"] = APP_URL
+
         response = supabase.auth.sign_up({
             "email": email,
             "password": password,
-            "options": {
-                "data": {
-                    "full_name": full_name,
-                    # Metadata is informational, not authorization.
-                    # The database trigger must assign role = client.
-                    "role": "client",
-                }
-            },
+            "options": options,
         })
 
         if response.user is None:
             return False, "Signup failed. Please try again."
 
         return True, (
-            "Account created successfully. Check your email "
-            "if email confirmation is required."
+            "Account created successfully. "
+            "Check your email to confirm your account. "
+            "After confirmation, return to SmartBook AI and log in."
         )
 
     except Exception as error:
@@ -109,7 +118,7 @@ def signup_user(email, password, full_name, role="client"):
 
 
 # ------------------------------------------------------------
-# ## Login
+# Login
 # ------------------------------------------------------------
 
 def login_user(email, password):
@@ -138,11 +147,11 @@ def login_user(email, password):
 
 
 # ------------------------------------------------------------
-# ## Restore Session
+# Restore Session
 # ------------------------------------------------------------
 
 def restore_user_session(access_token, refresh_token):
-    """Restore a session using its access and refresh tokens."""
+    """Restore a session using access and refresh tokens."""
 
     if not access_token or not refresh_token:
         raise ValueError("Both session tokens are required.")
@@ -161,7 +170,7 @@ def restore_user_session(access_token, refresh_token):
 
 
 # ------------------------------------------------------------
-# ## Logout
+# Logout
 # ------------------------------------------------------------
 
 def logout_user(access_token, refresh_token):
